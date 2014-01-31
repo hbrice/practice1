@@ -10,18 +10,19 @@
 #include <gcrypt.h>
 
 #define BUF_SIZE	80
-#define SALT_LENGTH	128	//salt refers to time - partial ordering
-#define KEY_LENGTH	24
+#define SALT_LENGTH	16 //128	//maybe 16?
+#define KEY_LENGTH	32 
 #define	HASH_FUNCTION = 'AES256'; //SHA256??
-#define DEFAULT_ITERATIONS 1024;
+#define DEFAULT_ITERATIONS 2048 //16*128
 #define ALGO = 'GCRY_KDF_PBKDF2';
 
 
 char buf[BUF_SIZE]; //buffer for read in password
 char *p;		// pointer for password input
-unsigned char *key = '\0'; 		//the key from hashing with password
-char *salt;
-int iterations = 0;
+//unsigned char *key = '\0'; 		//the key from hashing with password
+char key[32];
+//char *salt;
+unsigned char salt[32];
 int key_length = 128;
 //gcryp_error_t = 0;
 
@@ -30,24 +31,35 @@ void promptForPassword(){
 	printf("Please enter the password: ");
 	fflush (stdout);
 	p = fgets (buf, 80, stdin);
-	printf("You entered: %s\n", p);
+	//printf("You entered: %s\n", p);
 }
+
+void getkey(){
+	//key = calloc(key_length, sizeof(unsigned char*));
+	gcry_randomize(salt, 32, GCRY_STRONG_RANDOM);
+	printf("SALT: %s\n", salt);
+	printf("PASSWORD: %s\n", p);
+	printf("LENGTH OF PASSWORD: %zd\n", strlen(p)-1);
+
+	gcry_kdf_derive((void*)p, (strlen(p)-1), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, (void*)salt, SALT_LENGTH, DEFAULT_ITERATIONS, key_length, (void*) key);
+	printf("The Key is: %s\n", key);
+	/*int i;
+	for(i = 0; i < key_length; i++){
+		printf("%d\n", key[i]);
+	}*/
+	
+}
+
 
 void uoenc(){
 	/* Function for encrypting a file*/
 	printf("Lets encrypt some shizzzz:\n");
 	//call password prompt:
 	promptForPassword();	//asks user for password
-
-	key = calloc(key_length, sizeof(unsigned char*));
-	gcry_kdf_derive(p, strlen(p), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, salt, SALT_LENGTH, iterations, key_length, key);
-	printf("The Key is: %s\n", key);
-	int i;
-	for(i = 0; i < key_length; i++){
-		printf("%d\n", key[i]);
-	}
-
+	getkey();
+	
 }
+
 
 /*
 void append_hmac(char password){
@@ -73,7 +85,15 @@ int main (int argc, char *argv[]){
 	char *inFile;
 	char *ipaddress;
 	int i;
-	//For encryption
+	
+	//For encryption.. make secure memory...
+	gcry_control(GCRYCTL_SUSPEND_SECMEM_WARN);
+	gcry_control(GCRYCTL_INIT_SECMEM, 16384, 0);
+	gcry_control(GCRYCTL_RESUME_SECMEM_WARN);
+	printf("Done.\n");
+
+	gcry_control(GCRYCTL_INITIALIZATION_FINISHED, 0);
+	printf("Done.\n");
 
 	//Prints each arg on the command line:
 	for (i = 0; i < argc; i++){
@@ -106,4 +126,5 @@ int main (int argc, char *argv[]){
 	uoenc();
 	//printf("THE PASSWORD IS STILL%s\n", p);
 	//printf("Size of password: %zd\n", strlen(p));
+	exit(0);
 }
