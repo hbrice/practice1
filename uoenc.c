@@ -19,10 +19,10 @@
 
 char buf[BUF_SIZE]; //buffer for read in password
 char *p;		// pointer for password input
-unsigned char *key; 		//the key from hashing with password
+unsigned char *key = '\0'; 		//the key from hashing with password
 char *salt;
 int iterations = 0;
-int key_length;
+int key_length = 128;
 //gcryp_error_t = 0;
 
 void promptForPassword(){
@@ -38,13 +38,19 @@ void uoenc(){
 	printf("Lets encrypt some shizzzz:\n");
 	//call password prompt:
 	promptForPassword();	//asks user for password
+
 	key = calloc(key_length, sizeof(unsigned char*));
-	gcry_kdf_derive(p, strlen(p), GCRY_KDF_PBKDF2, GCRY_MD_SHA1, salt, SALT_LENGTH, iterations, key_length, key);
+	gcry_kdf_derive(p, strlen(p), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, salt, SALT_LENGTH, iterations, key_length, key);
+	printf("The Key is: %s\n", key);
+	int i;
+	for(i = 0; i < key_length; i++){
+		printf("%d\n", key[i]);
+	}
 
 }
 
 /*
-void create_hash(char password){
+void append_hmac(char password){
 	// Taskes in user password and returns key by using PBDKF2 function 
 	salt = CryptGen
 }
@@ -52,7 +58,7 @@ void create_hash(char password){
 
 void uodec(){
 /*Function for decrypting file and verifying the HMAC */
-	promptForPassword();
+//	promptForPassword();
 }
 
 bool doesFileExist(){
@@ -99,5 +105,5 @@ int main (int argc, char *argv[]){
 	//call uoenc:
 	uoenc();
 	//printf("THE PASSWORD IS STILL%s\n", p);
-	printf("Size of password: %zd\n", strlen(p));
+	//printf("Size of password: %zd\n", strlen(p));
 }
