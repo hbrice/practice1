@@ -9,7 +9,7 @@
 #include <stdbool.h>
 #include <gcrypt.h>
 
-#define BUF_SIZE	80
+#define BUF_SIZE	1024
 #define SALT_LENGTH	16 //128	//maybe 16?
 #define KEY_LENGTH	32 
 #define	HASH_FUNCTION = 'AES256'; //SHA256??
@@ -23,7 +23,12 @@ char *p;		// pointer for password input
 char key[32];
 //char *salt;
 unsigned char salt[32];
+gcry_cipher_hd_t handler;
+char ciphertext[48] = {0};
 int key_length = 128;
+char *inFile;
+FILE *fp;
+gcry_error_t err;	//for error handling
 //gcryp_error_t = 0;
 
 void promptForPassword(){
@@ -50,6 +55,20 @@ void getkey(){
 	
 }
 
+void encryptfile(){
+	//opens the encryption process
+	gcry_cipher_open(&handler, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, GCRY_CIPHER_SECURE);
+
+	gcry_cipher_setkey(handler, (void*)key, 32);
+	gcry_cipher_setiv(handler, (void*)salt, 16);
+	/*err = gcry_cipher_encrypt(handler, (unsigned char*)ciphertext, (unsigned char*) inFile, 48);
+	if (err){
+		printf("ENCRYPTION FAILED! %s/%s\n",
+		gcry_strsource(err),	//this can be used to output diagnostic message to the user.
+		gcry_strerror (err));
+	}*/
+	printf("Done: %s\n", ciphertext);
+}
 
 void uoenc(){
 	/* Function for encrypting a file*/
@@ -57,6 +76,9 @@ void uoenc(){
 	//call password prompt:
 	promptForPassword();	//asks user for password
 	getkey();
+	printf("Encryption is beginning:\n");
+	encryptfile();
+	printf("done.\n");
 	
 }
 
@@ -82,7 +104,6 @@ bool doesFileExist(){
 
 
 int main (int argc, char *argv[]){
-	char *inFile;
 	char *ipaddress;
 	int i;
 	
