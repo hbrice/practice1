@@ -18,6 +18,7 @@
 
 
 char buf[BUF_SIZE]; //buffer for read in password
+char plaintext[100];	//buffer to hold inFile text
 char *p;		// pointer for password input
 //unsigned char *key = '\0'; 		//the key from hashing with password
 char key[32];
@@ -27,7 +28,7 @@ gcry_cipher_hd_t handler;
 char ciphertext[48] = {0};
 int key_length = 128;
 char *inFile;
-FILE *fp;
+FILE *fp = NULL;
 FILE *fpout;
 gcry_error_t err = 0;	//for error handling
 //gcryp_error_t = 0;
@@ -58,13 +59,13 @@ void getkey(){
 
 void encryptfile(){
 	//opens the encryption process
-	fp = fopen("inFile", "r+");
-	fpout = fopen("out", "w+");
-	gcry_cipher_open(&handler, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, GCRY_CIPHER_SECURE);
+	//fp = fopen("inFile", "r+");
+	//fpout = fopen("out", "w+");
+	//gcry_cipher_open(&handler, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, GCRY_CIPHER_SECURE);
 
-	gcry_cipher_setkey(handler, (void*)key, KEY_LENGTH);
-	gcry_cipher_setiv(handler, (void*)salt, SALT_LENGTH);
-	err = gcry_cipher_encrypt(handler, (unsigned char*)ciphertext,  inFile, 48);
+	//gcry_cipher_setkey(handler, (void*)key, KEY_LENGTH);
+	//gcry_cipher_setiv(handler, (void*)salt, SALT_LENGTH);
+//	(int)err = gcry_cipher_encrypt(handler, (unsigned char*)ciphertext,  inFile, 48);
 	if (err){
 		printf("ENCRYPTION FAILED! %s/%s\n",
 		gcry_strsource(err),	//this can be used to output diagnostic message to the user.
@@ -105,14 +106,25 @@ bool doesFileExist(){
 	return true;
 }
 
-void readInFile(char *filename, char* buffer, size_t size){
-	/* read in a file*/
-	fp = NULL;
-	fp = open(filename, "rb");
-	if (fp == NULL) return 1;
 
-	fread (buffer, size, 1, fp);
+int readInFile(FILE *fp, char* filename, int c){
+	/* read in a file*/
+	//FILE *fp;
+	printf("Filename inside readInFile: %s\n", filename);
+	fp = fopen(filename, "r");
+	if (fp == NULL) { //error handling
+		perror("Error opening File.");
+		return (-1);
+	}else{
+		printf("No error while reading input.\n");
+	}
+	if( fgets (plaintext, c, fp) != NULL){
+		printf("Plaintext: %s\n", plaintext);
+	}else{
+		printf("Plaintext is Null.\n");
+	}
 	fclose(fp);
+	return(0);
 }
 
 
@@ -142,9 +154,12 @@ int main (int argc, char *argv[]){
 		perror("Sorry, No Input File Entered.");
 		exit(1);
 	}else {
-		readInFile();
-		inFile = argv[1];
-		printf("InputFile:%s\n", inFile);
+
+		//inFile = argv[1];
+		printf("InputFile:%s\n", argv[1]);
+	//	char *fgets(plaintext, 100, argv[1]);
+		readInFile(fp, argv[1], 100);
+
 	}
 
 	if(argv[2] == '\0'){
