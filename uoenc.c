@@ -10,10 +10,10 @@
 #include <gcrypt.h>
 
 #define BUF_SIZE	1024
-#define SALT_LENGTH	16 //128	//maybe 16?
+#define SALT_LENGTH	32
 #define KEY_LENGTH	32 
 #define	HASH_FUNCTION = 'AES256'; //SHA256??
-#define DEFAULT_ITERATIONS 2048 //16*128
+#define DEFAULT_ITERATIONS 1024 //2048 //16*128
 #define ALGO = 'GCRY_KDF_PBKDF2';
 
 
@@ -28,7 +28,8 @@ char ciphertext[48] = {0};
 int key_length = 128;
 char *inFile;
 FILE *fp;
-gcry_error_t err;	//for error handling
+FILE *fpout;
+gcry_error_t err = 0;	//for error handling
 //gcryp_error_t = 0;
 
 void promptForPassword(){
@@ -57,16 +58,18 @@ void getkey(){
 
 void encryptfile(){
 	//opens the encryption process
+	fp = fopen("inFile", "r+");
+	fpout = fopen("out", "w+");
 	gcry_cipher_open(&handler, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, GCRY_CIPHER_SECURE);
 
-	gcry_cipher_setkey(handler, (void*)key, 32);
-	gcry_cipher_setiv(handler, (void*)salt, 16);
-	/*err = gcry_cipher_encrypt(handler, (unsigned char*)ciphertext, (unsigned char*) inFile, 48);
+	gcry_cipher_setkey(handler, (void*)key, KEY_LENGTH);
+	gcry_cipher_setiv(handler, (void*)salt, SALT_LENGTH);
+	err = gcry_cipher_encrypt(handler, (unsigned char*)ciphertext,  inFile, 48);
 	if (err){
 		printf("ENCRYPTION FAILED! %s/%s\n",
 		gcry_strsource(err),	//this can be used to output diagnostic message to the user.
 		gcry_strerror (err));
-	}*/
+	}
 	printf("Done: %s\n", ciphertext);
 }
 
@@ -102,6 +105,16 @@ bool doesFileExist(){
 	return true;
 }
 
+void readInFile(char *filename, char* buffer, size_t size){
+	/* read in a file*/
+	fp = NULL;
+	fp = open(filename, "rb");
+	if (fp == NULL) return 1;
+
+	fread (buffer, size, 1, fp);
+	fclose(fp);
+}
+
 
 int main (int argc, char *argv[]){
 	char *ipaddress;
@@ -129,6 +142,7 @@ int main (int argc, char *argv[]){
 		perror("Sorry, No Input File Entered.");
 		exit(1);
 	}else {
+		readInFile();
 		inFile = argv[1];
 		printf("InputFile:%s\n", inFile);
 	}
