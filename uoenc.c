@@ -35,7 +35,7 @@ char *inFile;
 FILE *fp = NULL;
 FILE *fpout;
 gcry_error_t err = 0;	//for error handling
-//gcryp_error_t = 0;
+int lenOfIn;
 
 //stuff for socket
 struct hostent *hp;	//host info
@@ -82,11 +82,8 @@ int sendToIP(long hostname, unsigned short int port){
 	}*/
 }
 
-
-//Make room on the heap
-
 void promptForPassword(){
-	//prompt user for password and store in p
+	/* prompt user for password and store in p */
 	printf("Please enter the password: ");
 	fflush (stdout);
 	p = fgets (buf, 80, stdin);
@@ -99,14 +96,9 @@ void getkey(){
 	printf("SALT: %s\n", salt);
 	//printf("PASSWORD: %s\n", p);
 	//printf("LENGTH OF PASSWORD: %zd\n", strlen(p)-1);
-
 	gcry_kdf_derive(p, (strlen(p)-1), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, salt, SALT_LENGTH, DEFAULT_ITERATIONS, key_length, key);
 	printf("Derive is done.\n");
 	printf("The Key is: %s\n", key);
-	/*int i;
-	for(i = 0; i < key_length; i++){
-		printf("%d\n", key[i]);
-	}*/
 }
 
 
@@ -117,16 +109,39 @@ void getkey(){
 //	printf("The HMAC is appended to the key.\n");
 //}
 
+
+void writeToFile(char *buffer){
+	/*This is for creating the.uo encrypted file*/
+	char *uo = ".uo";
+	char *outputFile = (strcat(inFile, uo)); //create hello.txt.uo
+	fpout = fopen(outputFile, "w");
+	printf("Output File created.\n");
+	if (fpout == NULL){
+		printf("Error opening file.\n");
+		exit(1);
+	}
+	fputs(buffer, fpout);
+	fclose(fpout);
+	//print text
+	fprintf(fpout, "The encrypted text has been added. %s\n", ciphertext);
+}
+
 void encryptfile(){
-	//opens the encryption process
-	//fp = fopen("inFile", "r+");
-	//fpout = fopen("out", "w+");
+	/* opens the encryption process */
+	char *encryptMe = NULL;
+	int i;
 	gcry_cipher_open(&handler, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, GCRY_CIPHER_SECURE);
 	gcry_cipher_setkey(handler, (void*)key, KEY_LENGTH);
 	gcry_cipher_setiv(handler, (void*)salt, SALT_LENGTH);
-	
-	gcry_cipher_encrypt(handler, ciphertext, sizeof(plaintext), plaintext, 48);
-//	while(fgets(plaintext, 16, fp)){
+	//for (i = 0; i < 16; i++){
+	printf("sizeof(ciphertext): %zd\n", sizeof(ciphertext));
+	//}
+
+	gcry_cipher_encrypt(handler, ciphertext, sizeof(plaintext), plaintext, 16);
+	printf("Before seg fault.\n");
+	writeToFile(ciphertext);
+	printf("After seg fault.\n");
+//	while(fgets(plaintext, 16, fp)){ //this gets seg faulat
 		/*This will read 16 bits at a time of a file*/
 		//while not end of file
 		//read 16 bits -> save to a buffer
@@ -145,8 +160,12 @@ void encryptfile(){
 	}else{
 		printf("Encryption succeeded.\n");
 	}*/
+	gcry_cipher_close(handler);
 	printf("Done. Here is the ciphertext: %s\n", ciphertext);
 }
+
+
+
 
 void uoenc(){
 	/* Function for encrypting a file*/
@@ -215,6 +234,8 @@ int main (int argc, char *argv[]){
 		exit(1);
 	}else {
 		inFile = argv[1];	//i don't know if i use this anymore
+		lenOfIn = strlen(inFile);
+		//printf("lenOfIn %d\n", lenOfIn);
 		printf("InputFile:%s\n", argv[1]);
 		readInFile(fp, argv[1], 100);
 	}
