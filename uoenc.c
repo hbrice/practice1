@@ -30,10 +30,12 @@ char key[KEY_LENGTH];
 unsigned char salt[SALT_LENGTH];
 gcry_cipher_hd_t handler;
 char ciphertext[48] = {0};
+char decryptedtext[48] = {0};
 int key_length = 128;
 char *inFile;
 FILE *fp = NULL;
 FILE *fpout;
+FILE *fpin;
 gcry_error_t err = 0;	//for error handling
 int lenOfIn;
 
@@ -43,7 +45,7 @@ struct sockaddr_in serv_addr;	//server address
 char sendBuff[1025];
 
 /*Save to heap*/
-//encyptedBuff = calloc(sizeof(plaintext));
+
 
 
 int sendToIP(long hostname, unsigned short int port){
@@ -91,7 +93,7 @@ void promptForPassword(){
 }
 
 void getkey(){
-	//key = calloc(key_length, sizeof(unsigned char*));
+	/* Generate salt and key for encryption*/
 	gcry_randomize(salt, SALT_LENGTH, GCRY_STRONG_RANDOM);
 	printf("SALT: %s\n", salt);
 	//printf("PASSWORD: %s\n", p);
@@ -138,9 +140,9 @@ void encryptfile(){
 	//}
 
 	gcry_cipher_encrypt(handler, ciphertext, sizeof(plaintext), plaintext, 16);
-	printf("Before seg fault.\n");
+//	printf("Debug: Before seg fault.\n");
 	writeToFile(ciphertext);
-	printf("After seg fault.\n");
+//	printf("Debug: After seg fault.\n");
 //	while(fgets(plaintext, 16, fp)){ //this gets seg faulat
 		/*This will read 16 bits at a time of a file*/
 		//while not end of file
@@ -151,44 +153,50 @@ void encryptfile(){
 		//add padding
 	
 //	}
-
-
-	/*if (err){ //ERROR HANDLING
-		printf("ENCRYPTION FAILED! %s/%s\n",
-		gcry_strsource(err),	//this can be used to output diagnostic message to the user.
-		gcry_strerror (err));
-	}else{
-		printf("Encryption succeeded.\n");
-	}*/
 	gcry_cipher_close(handler);
 	printf("Done. Here is the ciphertext: %s\n", ciphertext);
 }
 
-
-
-
 void uoenc(){
-	/* Function for encrypting a file*/
+	/* Function for calling other functions for encrypting a file*/
 	printf("Lets encrypt some shizzzz:\n");
 	promptForPassword();	//asks user for password
 	getkey();
-	printf("Encryption is beginning:\n");
+	printf("Encryption is beginning.\n");
 	encryptfile();
 	printf("Encryption is done.\n");
-	
 }
 
-bool doesFileExist(){
-	/*Checks to see if file exsists, if it does:
-	* Abort program
-	*/
-	return true;
-}
+void uodec(){
+	/*Test function to see if encryption is correct*/
+	promptForPassword();
+	gcry_cipher_open(&handler, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, GCRY_CIPHER_SECURE);
+	gcry_cipher_setkey(handler, (void*)key, KEY_LENGTH);
+	gcry_cipher_setiv(handler, (void*)salt, SALT_LENGTH);
+	gcry_cipher_decrypt(handler, decryptedtext, sizeof(ciphertext), ciphertext, 16);
+	char *outputFile = "answer.txt"; //create hello.txt.uo
+	fpin = fopen(outputFile, "w");
+	printf("Output File created.\n");
+	if (fpin == NULL){
+		printf("Error opening file.\n");
+		exit(1);
+	}
+	fputs(decryptedtext, fpin);
+	fclose(fpin);
+	//print text
+	fprintf(fpin, "The encrypted text has been decryypted. %s\n", decryptedtext);
 
+
+//	readInFile(fpin, "hello.txt.uo", 100);
+	//prompt user for password
+	//open a encrypted file
+	// decrypt
+	//print output
+
+}
 
 int readInFile(FILE *fp, char* filename, int c){
 	/* read in a file*/
-	//FILE *fp;
 	printf("Filename inside readInFile: %s\n", filename);
 	fp = fopen(filename, "r");
 	if (fp == NULL) { //error handling
@@ -226,15 +234,15 @@ int main (int argc, char *argv[]){
 	}
 	
 	//input: uoenc.c hello.txt -d ipaddress -l
-	//Parsing of command line
+	/* Parsing of command line */
 	
 	if(argv[1] == '\0'){
 		//then no file name
 		perror("Sorry, No Input File Entered.");
 		exit(1);
 	}else {
-		inFile = argv[1];	//i don't know if i use this anymore
-		lenOfIn = strlen(inFile);
+		inFile = argv[1];	
+	//	lenOfIn = strlen(inFile);
 		//printf("lenOfIn %d\n", lenOfIn);
 		printf("InputFile:%s\n", argv[1]);
 		readInFile(fp, argv[1], 100);
@@ -255,6 +263,7 @@ int main (int argc, char *argv[]){
 	
 	//call uoenc:
 	uoenc();
+	uodec();
 	//printf("THE PASSWORD IS STILL%s\n", p);
 	//printf("Size of password: %zd\n", strlen(p));
 	exit(0);
