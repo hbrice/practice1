@@ -2,14 +2,16 @@
 * Holly Brice
 * Cis 433: Network Security
 * 1/24/14
+* gcc -o uoenc uoenc.c -lgcrypt to run
 */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
 #include <gcrypt.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
+#include <sys/socket.h>	//needed for socket connections
+#include <netinet/in.h> //needed for socket connections
+#include <sys/types.h>
 
 #define BUF_SIZE	1024
 #define SALT_LENGTH	64
@@ -36,47 +38,48 @@ gcry_error_t err = 0;	//for error handling
 //gcryp_error_t = 0;
 
 //stuff for socket
-int listenfd = 0;
-int connfd = 0;
-struct sockaddr_in serv_addr;
-
+struct hostent *hp;	//host info
+struct sockaddr_in serv_addr;	//server address
 char sendBuff[1025];
 
-int sentToIP(char *hostname, unsigned short int port){
+/*Save to heap*/
+//encyptedBuff = calloc(sizeof(plaintext));
+
+
+int sendToIP(long hostname, unsigned short int port){
 	/*sends file to specified IP address*/
-	int sock = 0;
+	int fd = 0;	//file descriptor
 	//create the socket
-	sock = socket(AF_INET, SOCK_STREAM, 0);
-	if (sock < 0){
+	fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (fd < 0){
 		perror("socket");
 		exit (EXIT_FAILURE);
 	}
 
 	//give socket a name
+	memset(&serv_addr, '0', sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_port = htons(port);
-	serv_addr.sin_addr.s_addr = hton1(hostname);
+	serv_addr.sin_addr.s_addr = htonl(hostname);
 /*
 	listenfd = socket(AF_INET, SOCK_STREAM, 0);
-
-	memset(&serv_add, '0', sizeof(serv_addr));
 	memset(sendBuff, '0', sizeof(sendBuff));
 */
-	if (bind(sock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0){
+	if (bind(fd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0){
 		perror("bind");
-		exit(EXIT_FAILURE);
+		return 0;
 	}
 
-	return sock;
+	return fd;
 
-	listen(listenfd, 10);
+	listen(fd, 10);
 	printf("Ready to serve..\n");
-
+/*
 	while(1){
-		connfd = accept(listenfd, (struct sockaddr*)NULL, NULL);
+		connfd = accept(fd, (struct sockaddr*)NULL, NULL);
 		write(connfd, sendBuff, strlen(sendBuff));
 		close(connfd);
-	}
+	}*/
 }
 
 
@@ -97,7 +100,7 @@ void getkey(){
 	//printf("PASSWORD: %s\n", p);
 	//printf("LENGTH OF PASSWORD: %zd\n", strlen(p)-1);
 
-	gcry_kdf_derive((void*)p, (strlen(p)-1), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, (void*)salt, SALT_LENGTH, DEFAULT_ITERATIONS, key_length, (void*) key);
+	gcry_kdf_derive(p, (strlen(p)-1), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, salt, SALT_LENGTH, DEFAULT_ITERATIONS, key_length, key);
 	printf("Derive is done.\n");
 	printf("The Key is: %s\n", key);
 	/*int i;
@@ -106,27 +109,42 @@ void getkey(){
 	}*/
 }
 
-void append_hmac(char *buffer){
+
+//void append_hmac(char *buffer){
 	/*Takes in key and appends hmac*/ 
-	//gcry_md_open(handler, GCRY_HMAC_SHA_256, GCRY_MD_FLAG_HMAC);
-	printf("The HMAC is appended to the key.\n");
-}
+//	err = 0;
+//	err = gcry_md_open(&handler, GCRY_MD_SHA256, GCRY_MD_FLAG_HMAC);
+//	printf("The HMAC is appended to the key.\n");
+//}
 
 void encryptfile(){
 	//opens the encryption process
 	//fp = fopen("inFile", "r+");
 	//fpout = fopen("out", "w+");
 	gcry_cipher_open(&handler, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, GCRY_CIPHER_SECURE);
-	//gcry_cipher_setkey(handler, (void*)key, KEY_LENGTH);
-	//gcry_cipher_setiv(handler, (void*)salt, SALT_LENGTH);
-	//err = gcry_cipher_encrypt(handler, (unsigned char*)ciphertext, plaintext, 48);
-	if (err){
+	gcry_cipher_setkey(handler, (void*)key, KEY_LENGTH);
+	gcry_cipher_setiv(handler, (void*)salt, SALT_LENGTH);
+	
+	gcry_cipher_encrypt(handler, ciphertext, sizeof(plaintext), plaintext, 48);
+//	while(fgets(plaintext, 16, fp)){
+		/*This will read 16 bits at a time of a file*/
+		//while not end of file
+		//read 16 bits -> save to a buffer
+		//encrypt that buffer
+		//save to a file
+		//encrypt next 16 its
+		//add padding
+	
+//	}
+
+
+	/*if (err){ //ERROR HANDLING
 		printf("ENCRYPTION FAILED! %s/%s\n",
 		gcry_strsource(err),	//this can be used to output diagnostic message to the user.
 		gcry_strerror (err));
 	}else{
 		printf("Encryption succeeded.\n");
-	}
+	}*/
 	printf("Done. Here is the ciphertext: %s\n", ciphertext);
 }
 
@@ -139,16 +157,6 @@ void uoenc(){
 	encryptfile();
 	printf("Encryption is done.\n");
 	
-}
-
-
-
-
-
-
-void uodec(){
-/*Function for decrypting file and verifying the HMAC */
-//	promptForPassword();
 }
 
 bool doesFileExist(){
@@ -209,14 +217,16 @@ int main (int argc, char *argv[]){
 		inFile = argv[1];	//i don't know if i use this anymore
 		printf("InputFile:%s\n", argv[1]);
 		readInFile(fp, argv[1], 100);
-
 	}
 
 	if(argv[2] == '\0'){
 		// no -d comment
 		// encrypt file and dump in output file of same name
 	}else{
+
 		ipaddress = argv[3]; //holds the ipadress
+		long host = (long)ipaddress;
+		//sendToIP(host, )
 		printf("IPAddress:%s\n", ipaddress);
 		
 	}
