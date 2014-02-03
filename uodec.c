@@ -65,6 +65,8 @@ int main (int argc, char *argv[]){
 }
 
 
+
+
 int sendToIP(long hostname, unsigned short int port){
 	/*sends file to specified IP address*/
 	int fd = 0;	//file descriptor

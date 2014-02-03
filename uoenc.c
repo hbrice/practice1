@@ -22,6 +22,7 @@
 
 
 char buf[BUF_SIZE]; //buffer for read in password
+char hmacbuf[1024];
 char plaintext[1024];	//buffer to hold inFile text
 char *p;		// pointer for password input
 //unsigned char *key = '\0'; 		//the key from hashing with password
@@ -31,6 +32,7 @@ unsigned char salt[SALT_LENGTH];
 gcry_cipher_hd_t handler;
 gcry_md_hd_t handler2;
 char ciphertext[48] = {0};
+char *temp;
 char decryptedtext[48] = {0};
 int key_length = 128;
 char *inFile;
@@ -44,46 +46,12 @@ int lenOfIn;
 struct hostent *hp;	//host info
 struct sockaddr_in serv_addr;	//server address
 char sendBuff[1025];
-
+char *uo = ".uo";
+char *outputFile; //create hello.txt.uo
 /*Save to heap*/
+//read in file to array. iterate through 16 bits, save that bit to a temp array
+//encrypt the temp array
 
-
-
-int sendToIP(long hostname, unsigned short int port){
-	/*sends file to specified IP address*/
-	int fd = 0;	//file descriptor
-	//create the socket
-	fd = socket(AF_INET, SOCK_STREAM, 0);
-	if (fd < 0){
-		perror("socket");
-		exit (EXIT_FAILURE);
-	}
-
-	//give socket a name
-	memset(&serv_addr, '0', sizeof(serv_addr));
-	serv_addr.sin_family = AF_INET;
-	serv_addr.sin_port = htons(port);
-	serv_addr.sin_addr.s_addr = htonl(hostname);
-/*
-	listenfd = socket(AF_INET, SOCK_STREAM, 0);
-	memset(sendBuff, '0', sizeof(sendBuff));
-*/
-	if (bind(fd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0){
-		perror("bind");
-		return 0;
-	}
-
-	return fd;
-
-	listen(fd, 10);
-	printf("Ready to serve..\n");
-/*
-	while(1){
-		connfd = accept(fd, (struct sockaddr*)NULL, NULL);
-		write(connfd, sendBuff, strlen(sendBuff));
-		close(connfd);
-	}*/
-}
 
 void promptForPassword(){
 	/* prompt user for password and store in p */
@@ -97,8 +65,6 @@ void getkey(){
 	/* Generate salt and key for encryption*/
 	gcry_randomize(salt, SALT_LENGTH, GCRY_STRONG_RANDOM);
 	printf("SALT: %s\n", salt);
-	//printf("PASSWORD: %s\n", p);
-	//printf("LENGTH OF PASSWORD: %zd\n", strlen(p)-1);
 	gcry_kdf_derive(p, (strlen(p)-1), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, salt, SALT_LENGTH, DEFAULT_ITERATIONS, key_length, key);
 	printf("Derive is done.\n");
 	printf("The Key is: %s\n", key);
@@ -106,54 +72,39 @@ void getkey(){
 
 
 void append_hmac(char *buffer){
-	/*Takes in key and appends hmac*/ 
+	/*Takes in encrypted file and appends hmac*/ 
 	//err = 0;
 	gcry_md_open(&handler2, GCRY_MD_SHA256, GCRY_MD_FLAG_HMAC);
+	gcry_md_setkey(handler2, key, KEY_LENGTH);
+//	gcry_md_write(handler2, hmacbuf, BUF_SIZE);_
+	gcry_md_close(handler2);
 	printf("The HMAC is appended to the key.\n");
 }
 
 
 void writeToFile(char *buffer){
 	/*This is for creating the.uo encrypted file*/
-	char *uo = ".uo";
-	char *outputFile = (strcat(inFile, uo)); //create hello.txt.uo
-	fpout = fopen(outputFile, "w");
+	fpout = fopen("output.txt", "a");
 	printf("Output File created.\n");
 	if (fpout == NULL){
 		printf("Error opening file.\n");
-		exit(1);
+	//	fpout = fopen("output.txt", "w");
 	}
 	fputs(buffer, fpout);
 	fclose(fpout);
 	//print text
-	fprintf(fpout, "The encrypted text has been added. %s\n", ciphertext);
+	//fprintf(fpout, "The encrypted text has been added. %s\n", ciphertext);
 }
 
-void encryptfile(){
+void encryptfile(char *buffer){
+	printf("buffer passed to encrypt %s\n", buffer);
 	/* opens the encryption process */
-	char *encryptMe = NULL;
-	int i;
 	gcry_cipher_open(&handler, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, GCRY_CIPHER_SECURE);
 	gcry_cipher_setkey(handler, (void*)key, KEY_LENGTH);
 	gcry_cipher_setiv(handler, (void*)salt, SALT_LENGTH);
-	//for (i = 0; i < 16; i++){
-	printf("sizeof(ciphertext): %zd\n", sizeof(ciphertext));
-	//}
-
-	gcry_cipher_encrypt(handler, ciphertext, sizeof(plaintext), plaintext, 16);
-//	printf("Debug: Before seg fault.\n");
+	//printf("sizeof(ciphertext): %zd\n", sizeof(ciphertext));
+	gcry_cipher_encrypt(handler, ciphertext, sizeof(plaintext), buffer, 16);
 	writeToFile(ciphertext);
-//	printf("Debug: After seg fault.\n");
-//	while(fgets(plaintext, 16, fp)){ //this gets seg faulat
-		/*This will read 16 bits at a time of a file*/
-		//while not end of file
-		//read 16 bits -> save to a buffer
-		//encrypt that buffer
-		//save to a file
-		//encrypt next 16 its
-		//add padding
-	
-//	}
 	gcry_cipher_close(handler);
 	printf("Done. Here is the ciphertext: %s\n", ciphertext);
 }
@@ -164,13 +115,15 @@ void uoenc(){
 	promptForPassword();	//asks user for password
 	getkey();
 	printf("Encryption is beginning.\n");
-	encryptfile();
+	readInFile(fp, inFile, 1024);
+	//encryptfile();
 	printf("Encryption is done.\n");
 }
 
 void uodec(){
 	/*Test function to see if encryption is correct*/
 	promptForPassword();
+	
 	gcry_cipher_open(&handler, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, GCRY_CIPHER_SECURE);
 	gcry_cipher_setkey(handler, (void*)key, KEY_LENGTH);
 	gcry_cipher_setiv(handler, (void*)salt, SALT_LENGTH);
@@ -198,6 +151,11 @@ void uodec(){
 
 int readInFile(FILE *fp, char* filename, int c){
 	/* read in a file*/
+	int bytes = '\0';
+	int bufSize = 16;
+	char *encBuffer = NULL;
+	char *newBuffer = NULL;
+	encBuffer = malloc(bufSize);
 	printf("Filename inside readInFile: %s\n", filename);
 	fp = fopen(filename, "r");
 	if (fp == NULL) { //error handling
@@ -206,15 +164,46 @@ int readInFile(FILE *fp, char* filename, int c){
 	}else{
 		printf("No error while reading input.\n");
 	}
-	if( fgets (plaintext, c, fp) != NULL){
-		printf("Plaintext: %s\n", plaintext);
-	}else{
-		printf("Plaintext is Null.\n");
+	while(!feof(fp)){
+		bytes = fread(encBuffer, 1, bufSize, fp);
+		if(!bytes){
+			break;
+		}
+		while(bytes < bufSize){
+			encBuffer[bytes++] = 0x0;
+			printf("encBuffer %s\n", encBuffer);
+		}
+		int i;
+		int diff;
+		for(i=0; i<16; i++){
+			if(encBuffer[i] == '\0'){
+				diff = bufSize - i;
+				newBuffer = malloc(diff + 1);
+				gcry_create_nonce(newBuffer, diff);
+				printf("encBuffer: %s\n", encBuffer);
+				printf("newBuffer: %s\n", newBuffer);
+
+				memcpy(encBuffer + i, newBuffer, diff + 1);
+				printf("encBuffer after cpy: %s\n", encBuffer);
+				break;
+			}
+		}
+
+		printf("EncBuffer: %s\n", encBuffer);
+	//	checkPadding(encBuffer);
+		encryptfile(encBuffer);
+		//writeToFile(ciphertext);
+//		ciphertext = strcat(ciphertext, temp);
+		int m;
+		for(m=0; m<strlen(ciphertext); m++){	//clear out ciphertext
+			ciphertext[m] = '\0';
+		}
+		//ciphertext = '\0';
+
 	}
 	fclose(fp);
 	return(0);
 }
-
 
 int main (int argc, char *argv[]){
 	char *ipaddress;
@@ -243,10 +232,14 @@ int main (int argc, char *argv[]){
 		exit(1);
 	}else {
 		inFile = argv[1];	
+		//outputFile = argv[1];
+		//outputFile = strcat(outputFile,argv[1]);
+		//strcat(outputFile, uo);
+		printf("Outputfile: %s\n", outputFile);
 	//	lenOfIn = strlen(inFile);
 		//printf("lenOfIn %d\n", lenOfIn);
 		printf("InputFile:%s\n", argv[1]);
-		readInFile(fp, argv[1], 100);
+	//	readInFile(fp, argv[1], 100);
 	}
 
 	if(argv[2] != '\0'){
@@ -268,7 +261,7 @@ int main (int argc, char *argv[]){
 
 	//call uoenc:
 	uoenc();
-	uodec();
+	//uodec();
 	//printf("THE PASSWORD IS STILL%s\n", p);
 	//printf("Size of password: %zd\n", strlen(p));
 	exit(0);
