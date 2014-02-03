@@ -22,13 +22,14 @@
 
 
 char buf[BUF_SIZE]; //buffer for read in password
-char plaintext[100];	//buffer to hold inFile text
+char plaintext[1024];	//buffer to hold inFile text
 char *p;		// pointer for password input
 //unsigned char *key = '\0'; 		//the key from hashing with password
 char key[KEY_LENGTH];
 //char *salt;
 unsigned char salt[SALT_LENGTH];
 gcry_cipher_hd_t handler;
+gcry_md_hd_t handler2;
 char ciphertext[48] = {0};
 char decryptedtext[48] = {0};
 int key_length = 128;
@@ -104,12 +105,12 @@ void getkey(){
 }
 
 
-//void append_hmac(char *buffer){
+void append_hmac(char *buffer){
 	/*Takes in key and appends hmac*/ 
-//	err = 0;
-//	err = gcry_md_open(&handler, GCRY_MD_SHA256, GCRY_MD_FLAG_HMAC);
-//	printf("The HMAC is appended to the key.\n");
-//}
+	//err = 0;
+	gcry_md_open(&handler2, GCRY_MD_SHA256, GCRY_MD_FLAG_HMAC);
+	printf("The HMAC is appended to the key.\n");
+}
 
 
 void writeToFile(char *buffer){
@@ -248,19 +249,23 @@ int main (int argc, char *argv[]){
 		readInFile(fp, argv[1], 100);
 	}
 
-	if(argv[2] == '\0'){
-		// no -d comment
+	if(argv[2] != '\0'){
+		if(argv[2] == "-d"){
+			//send to ip address
+			ipaddress = argv[3]; //holds the ipadress
+			long host = (long)ipaddress;
+			//sendToIP(host, )
+			printf("IPAddress:%s\n", ipaddress);
+		}else if(argv[2] == "-l"){
+			//run in local mode and just encrypt a file
+		}
 		// encrypt file and dump in output file of same name
-	}else{
-
-		ipaddress = argv[3]; //holds the ipadress
-		long host = (long)ipaddress;
-		//sendToIP(host, )
-		printf("IPAddress:%s\n", ipaddress);
-		
+	}else if(argv[2] == '\0'){
+		//run in local mode
+	//	perror("You did not enter a third argument. Would you like to send over IP? add -d and IP address. If you would like to encrypt a local file, enter -l.");
+	//	exit(1);
 	}
 
-	
 	//call uoenc:
 	uoenc();
 	uodec();
