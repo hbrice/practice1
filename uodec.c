@@ -9,11 +9,36 @@
 #include <string.h>
 #include <stdbool.h>
 #include <gcrypt.h>
-#include "uoenc.h"
 
 #define SALT_LENGTH	64
+#define BLOCK_LEN 16
+#define BUF_SIZE	1024
+#define MAX_FILE_SIZE 1024
+#define KEY_LENGTH	32 
+#define DEFAULT_ITERATIONS 1024 //2048 //16*128
 
+/* FIle pointers for reading files */
+FILE *fp = NULL;	//file pointer for readInFile
+FILE *fpout;	//file pointer for writeToFile
+
+/* Buffer for storing key */
 char key[KEY_LENGTH];
+
+/* For password */
+char buf[BUF_SIZE]; //buffer for read in password
+char *p;		// pointer for password input
+
+/* Buffer for storing salt */
+
+unsigned char salt[SALT_LENGTH];
+unsigned char iv[BLOCK_LEN];
+
+/* Handlers for encryption */
+gcry_cipher_hd_t handler;
+gcry_md_hd_t handler2;
+
+char *outputFile; //create hello.txt.uo
+char *decryptBuf = NULL;
 char decryptedtext[16] = {0};
 FILE *fpin = NULL; //file pointer for readEncFile
 char *inFile;
@@ -28,22 +53,20 @@ void promptForPassword(){
 
 void getkey(){
 	/* Get key for decryption*/
-	printf("SALT: %s\n", salt);
+//	printf("SALT: %s\n", salt);
 	gcry_kdf_derive(p, (strlen(p)-1), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, salt, SALT_LENGTH, DEFAULT_ITERATIONS, KEY_LENGTH, key);
 	printf("Derive is done.\n");
-	printf("The Key is: %s\n", key);
+//	printf("The Key is: %s\n", key);
 }
 
 void writeOtherFile(char *buffer){
 	/*This is for creating the.uo encrypted file*/
 	fpin = fopen("answer.txt", "a");
-	printf("Output File created.\n");
 	if (fpin == NULL){
 		printf("Error opening file.\n");
 		//fpin = fopen("output.txt", "w");
 	}
 	fputs(buffer, fpin);
-	printf("buffer inserted is: %s\n",buffer);
 	fclose(fpin);
 }
 
@@ -51,16 +74,20 @@ void decryptFile(char *buffer){
 	/* Read 16 bits at a time and decrypt*/
 	gcry_cipher_open(&handler, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, GCRY_CIPHER_SECURE);
 	gcry_cipher_setkey(handler, (void*)key, KEY_LENGTH);
-	gcry_cipher_setiv(handler, &iv, SALT_LENGTH);
+	gcry_cipher_setiv(handler, iv, BLOCK_LEN);
 	gcry_cipher_decrypt(handler, decryptedtext, BLOCK_LEN, buffer, BLOCK_LEN);
 	writeOtherFile(decryptedtext);
 }
 
+//store all of file into array. then start loop at 80
+
 int readEncFile(FILE *fp, int c){
 	/* read in a file*/
+
 	int bufSize = 16;
 	char line[bufSize];
 	fp = fopen("hello.txt.uo", "r");
+
 	printf("inFile %s\n", inFile);
 	int n=0; //count up to 1 - 16
 	int m; // used to hold char value
@@ -77,11 +104,11 @@ int readEncFile(FILE *fp, int c){
 			n=0;
 		}
 		r = (char)m;
-	//	printf("r is: %c\n", r);
 		line[n] = r;
 		n++;
 	}	//reached end of file
 	printf("END OF FILE.\n");
+
 //	decryptFile(line);
 	printf("finished writing\n");
 	fclose(fp);
@@ -91,19 +118,11 @@ int readEncFile(FILE *fp, int c){
 void uodec(){
 	/*Test function to see if encryption is correct*/
 	printf("Lets decrypt some shizzzz:\n");
-	promptForPassword();
-	getkey();
+//	printf("salt is: %s\n", salt);
+//	printf("iv is: %s\n", iv);
+//	promptForPassword();
+//	getkey();
 	readEncFile(fpin, MAX_FILE_SIZE);
-/*	char *outputFile = "answer.txt"; //create hello.txt.uo
-	fpin = fopen(outputFile, "w");
-	printf("Output File created.\n");
-	if (fpin == NULL){
-		printf("Error opening file.\n");
-		exit(1);
-	}
-	fputs(decryptedtext, fpin);
-	fclose(fpin);
-	//print text */
 	fprintf(fpin, "The encrypted text has been decryypted. %s\n", decryptedtext);
 }
 
@@ -155,15 +174,36 @@ int main (int argc, char *argv[]){
 	printf("InputFile:%s\n", inFile);
 
 	/* read in sale and iv for variables  */
-	FILE *readSalt = fopen(inFile, "r");
-//	printf("inputFile: %s\n", inFile);
-	fread(salt, SALT_LENGTH, 1, readSalt); //save salt to variable
-	
-	fread(iv, BLOCK_LEN, 1, readSalt); //save iv to variable
+	int bytes = '\0';
+	decryptBuf = malloc(BLOCK_LEN);
+	promptForPassword();
 
-	fclose(readSalt);	
+	FILE *readSalt = fopen(inFile, "r");
+	fread(salt, (64 + strlen(p)), 1, readSalt); //save salt to variable
+	printf("salt is: %s\n", salt);
+
+	fread(iv, 16, 1, readSalt); //save iv to variable
+	printf("iv is: %s\n", iv);
+
+	getkey();
+	
+	while(!feof(readSalt)){
+		printf("inside while loop.\n");
+		bytes = fread(decryptBuf,1,BLOCK_LEN, readSalt);
+		if(!bytes){
+			printf("broke out.\n");
+			break;
+		}
+		decryptFile(decryptBuf);
+		printf("decrypted text: %s\n", decryptedtext);
+		writeOtherFile(decryptBuf);
+	}
+
+	fclose(readSalt);
+
+
 
 	/* close functions */
-	uodec();
+//	uodec();
 	exit(0);
 }
