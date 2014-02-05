@@ -9,12 +9,34 @@
 #include <string.h>
 #include <stdbool.h>
 #include <gcrypt.h>
-#include <sys/socket.h>	//needed for socket connections
-#include <netinet/in.h> //needed for socket connections
-#include <sys/types.h>
 
-/*sends file to specified IP address*/
-int sendToIP(long hostname, unsigned short int port);
+#define BUF_SIZE	1024
+#define MAX_FILE_SIZE 1024
+#define SALT_LENGTH	64
+#define KEY_LENGTH	32 
+#define BLOCK_LEN 16
+#define DEFAULT_ITERATIONS 1024 //2048 //16*128
+
+
+/* Buffer for storing key */
+char key[KEY_LENGTH];
+
+/* For password */
+char buf[BUF_SIZE]; //buffer for read in password
+char *p;		// pointer for password input
+
+/* Buffer for storing salt */
+unsigned char salt[SALT_LENGTH];
+unsigned char *iv = NULL;
+
+/* Handlers for encryption */
+gcry_cipher_hd_t handler;
+gcry_md_hd_t handler2;
+
+/* FIle pointers for reading files */
+FILE *fp = NULL;	//file pointer for readInFile
+FILE *fpout;	//file pointer for writeToFile
+
 
 /* prompt user for password and store in p */
 void promptForPassword();
@@ -22,16 +44,28 @@ void promptForPassword();
 /* Generate salt and key for encryption*/
 void getkey();
 
+/* generate new iv each message */
+void setIV();
+
+/* Takes in input file and returns hello.txt.uo */
+void createOutputFile(char *filename);
+
+/*Takes in encrypted file and appends hmac*/ 
+void append_hmac(char *buffer);
+
 /*This is for creating the.uo encrypted file*/
 void writeToFile(char *buffer);
 
 /* opens the encryption process */
-void encryptfile();
+void encryptfile(char *buffer);
 
 /* Function for calling other functions for encrypting a file*/
 void uoenc();
 
 /* read in a file*/
 int readInFile(FILE *fp, char* filename, int c);
+
+/* check ther version and setup gcrypt */
+void checkVersion_setup();
 
 #endif
