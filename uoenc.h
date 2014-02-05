@@ -27,11 +27,13 @@ char *p;		// pointer for password input
 
 /* Buffer for storing salt */
 unsigned char salt[SALT_LENGTH];
-unsigned char *iv = NULL;
+unsigned char *iv;
 
 /* Handlers for encryption */
 gcry_cipher_hd_t handler;
 gcry_md_hd_t handler2;
+
+char *outputFile; //create hello.txt.uo
 
 /* FIle pointers for reading files */
 FILE *fp = NULL;	//file pointer for readInFile

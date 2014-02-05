@@ -11,11 +11,11 @@
 #include <gcrypt.h>
 #include "uoenc.h"
 
-gcry_cipher_hd_t handler;
+#define SALT_LENGTH	64
+
 char key[KEY_LENGTH];
-unsigned char salt[SALT_LENGTH];
 char decryptedtext[16] = {0};
-FILE *fpin;
+FILE *fpin = NULL; //file pointer for readEncFile
 char *inFile;
 
 void promptForPassword(){
@@ -32,16 +32,6 @@ void getkey(){
 	gcry_kdf_derive(p, (strlen(p)-1), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, salt, SALT_LENGTH, DEFAULT_ITERATIONS, KEY_LENGTH, key);
 	printf("Derive is done.\n");
 	printf("The Key is: %s\n", key);
-//	setIV();
-}
-
-
-
-void setIV(){
-	/* generate new iv each message */
-	printf("Setting the iv.\n");
-	iv = gcry_random_bytes_secure(BLOCK_LEN, GCRY_STRONG_RANDOM); 
-	printf("Iv is set to: %s\n", iv);
 }
 
 void writeOtherFile(char *buffer){
@@ -61,8 +51,8 @@ void decryptFile(char *buffer){
 	/* Read 16 bits at a time and decrypt*/
 	gcry_cipher_open(&handler, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, GCRY_CIPHER_SECURE);
 	gcry_cipher_setkey(handler, (void*)key, KEY_LENGTH);
-	gcry_cipher_setiv(handler, (void*)salt, SALT_LENGTH);
-	gcry_cipher_decrypt(handler, decryptedtext, 16, buffer, 16);
+	gcry_cipher_setiv(handler, &iv, SALT_LENGTH);
+	gcry_cipher_decrypt(handler, decryptedtext, BLOCK_LEN, buffer, BLOCK_LEN);
 	writeOtherFile(decryptedtext);
 }
 
@@ -70,7 +60,7 @@ int readEncFile(FILE *fp, int c){
 	/* read in a file*/
 	int bufSize = 16;
 	char line[bufSize];
-	fp = fopen(inFile, "r");
+	fp = fopen("hello.txt.uo", "r");
 	printf("inFile %s\n", inFile);
 	int n=0; //count up to 1 - 16
 	int m; // used to hold char value
@@ -84,33 +74,16 @@ int readEncFile(FILE *fp, int c){
 	while((m = fgetc(fp)) != EOF){	//fill line with 16 bits
 		if(n==bufSize){
 			decryptFile(line);
-			int j;
-			for (j = 0; j <bufSize; j++){	//nulled out line
-				line[j] = '\0';
-			}
 			n=0;
 		}
 		r = (char)m;
-		printf("r is: %c\n", r);
+	//	printf("r is: %c\n", r);
 		line[n] = r;
 		n++;
 	}	//reached end of file
 	printf("END OF FILE.\n");
-	int v;
-	v = (int)line[0]; //v is a new line
-	if(v == 10){
-		printf("No need to pad\n");
-	}else{
-		/*do padding*/
-		while(n < bufSize){
-			line[n] = 0x0;
-			n++;
-			printf("line %s\n", line);
-		}
-		decryptFile(line);
-	}
+//	decryptFile(line);
 	printf("finished writing\n");
-
 	fclose(fp);
 	return(0);
 }
@@ -134,10 +107,13 @@ void uodec(){
 	fprintf(fpin, "The encrypted text has been decryypted. %s\n", decryptedtext);
 }
 
-int main (int argc, char *argv[]){
-	char *inputFile;
-	int i;
-	
+void checkVersion_setup(){
+	/* check ther version and setup gcrypt */
+	if(!gcry_check_version("1.5.0")){
+		printf("Starting gcrypt failed.\n");
+	}else{
+		printf("You are starting gcrpyt.\n");
+	}
 	//For encryption.. make secure memory...
 	gcry_control(GCRYCTL_SUSPEND_SECMEM_WARN);
 	gcry_control(GCRYCTL_INIT_SECMEM, 16384, 0);
@@ -145,7 +121,14 @@ int main (int argc, char *argv[]){
 	printf("Done.\n");
 
 	gcry_control(GCRYCTL_INITIALIZATION_FINISHED, 0);
-	printf("Done.\n");
+	printf("Initialization is Done.\n");
+}
+
+int main (int argc, char *argv[]){
+	char *inputFile;
+	int i;
+	
+	checkVersion_setup();
 
 	//Prints each arg on the command line:
 	for (i = 0; i < argc; i++){
@@ -171,8 +154,16 @@ int main (int argc, char *argv[]){
 	inFile = argv[1];	
 	printf("InputFile:%s\n", inFile);
 
+	/* read in sale and iv for variables  */
+	FILE *readSalt = fopen(inFile, "r");
+//	printf("inputFile: %s\n", inFile);
+	fread(salt, SALT_LENGTH, 1, readSalt); //save salt to variable
+	
+	fread(iv, BLOCK_LEN, 1, readSalt); //save iv to variable
+
+	fclose(readSalt);	
+
+	/* close functions */
 	uodec();
-	//printf("THE PASSWORD IS STILL%s\n", p);
-	//printf("Size of password: %zd\n", strlen(p));
 	exit(0);
 }

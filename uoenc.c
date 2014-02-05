@@ -12,19 +12,15 @@
 #include "uoenc.h"
 
 //hardcode salt
-
 //char hmacbuf[1024];
 
 char *inFile; // File name "hello.txt" stored from argv[1]
 char plaintext[MAX_FILE_SIZE];	//buffer to hold inFile text
 char *uo = ".uo";
-char *outputFile; //create hello.txt.uo
 
 char ciphertext[BLOCK_LEN] = {0}; //originally 48
-//char *temp;
-//char decryptedtext[48] = {0};
-
 gcry_error_t err = 0;	//for error handling
+FILE *pepper = NULL; //used for sending salt
 
 /*Save to heap*/
 
@@ -38,11 +34,20 @@ void promptForPassword(){
 
 void getkey(){
 	/* Generate salt and key for encryption*/
+	
 	gcry_randomize(salt, SALT_LENGTH, GCRY_STRONG_RANDOM);
 	printf("SALT: %s\n", salt);
+	createOutputFile(inFile);
+	pepper = fopen(outputFile, "w");
+	printf("outputfile: %s\n", outputFile);
+	fputs(salt, pepper);
+	fclose(pepper);	
+	
 	gcry_kdf_derive(p, (strlen(p)-1), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, salt, SALT_LENGTH, DEFAULT_ITERATIONS, KEY_LENGTH, key);
+	
 	printf("Derive is done.\n");
 	printf("The Key is: %s\n", key);
+
 	setIV();
 }
 
@@ -51,6 +56,12 @@ void setIV(){
 	printf("Setting the iv.\n");
 	iv = gcry_random_bytes_secure(BLOCK_LEN, GCRY_STRONG_RANDOM); 
 	printf("Iv is set to: %s\n", iv);
+
+	/* attach to text file */
+	pepper = fopen(outputFile, "a");
+	printf("outputfile: %s\n", outputFile);
+	fputs(iv, pepper);
+	fclose(pepper);	
 }
 
 void createOutputFile(char *filename){
@@ -71,7 +82,7 @@ void append_hmac(char *buffer){
 
 void writeToFile(char *buffer){
 	/*This is for creating the.uo encrypted file*/
-	createOutputFile(inFile);
+	//createOutputFile(inFile);
 	fpout = fopen(outputFile, "a");
 	printf("Output File created.\n");
 	if (fpout == NULL){
@@ -89,7 +100,7 @@ void encryptfile(char *buffer){
 	gcry_cipher_setkey(handler, (void*)key, KEY_LENGTH);
 	gcry_cipher_setiv(handler, &iv, BLOCK_LEN);
 	gcry_cipher_encrypt(handler, ciphertext, sizeof(plaintext), buffer, BLOCK_LEN);
-	writeToFile(ciphertext);
+	//writeToFile(ciphertext);
 	gcry_cipher_close(handler);
 	//printf("Done. Here is the ciphertext: %s\n", ciphertext);
 }
@@ -102,6 +113,36 @@ void uoenc(){
 	printf("Encryption is beginning.\n");
 	readInFile(fp, inFile, MAX_FILE_SIZE);
 	printf("Encryption is done.\n");
+}
+
+void doPadding(char *buffer, int count){
+	/* pad the text to be 16 bits */
+	int diff;
+	char *tempBuffer = NULL;
+	while(count < BLOCK_LEN){
+		buffer[count] = 0x0; //0x0
+		count++;
+	}
+	int i;
+	for(i=0; i < BLOCK_LEN; i++){
+		if(buffer[i] == '\0'){
+			diff = BLOCK_LEN - i;
+			tempBuffer = malloc(diff + 1);
+			gcry_create_nonce(tempBuffer, diff);
+			printf("filling in with nonce\n");
+			memcpy(buffer + i, tempBuffer, diff + 1);
+		/*	int j; //for printing out contents of buffer	
+			for (j = 0; j < 16; j++) {
+				printf("buffer at %d", j);
+				printf("****%d\n", buffer[j]);
+			}
+		*/
+			printf("buffer: %s\n", buffer);
+		}
+	}
+	printf("after nonce: %s\n", buffer);
+	encryptfile(buffer);
+		//writeToFile(line);
 }
 
 int readInFile(FILE *fp, char* filename, int c){
@@ -130,7 +171,7 @@ int readInFile(FILE *fp, char* filename, int c){
 			n=0;
 		}
 		r = (char)m;
-		printf("r is: %c\n", r);
+	//	printf("r is: %c\n", r);
 		line[n] = r;
 		n++;
 	}	//reached end of file
@@ -141,25 +182,13 @@ int readInFile(FILE *fp, char* filename, int c){
 		printf("No need to pad\n");
 	}else{
 		/*do padding*/
-		while(n < bufSize){
-			line[n] = 0x0; //0x0
-			n++;
-			printf("line %s\n", line);
-		}
-		encryptfile(line);
-		//writeToFile(line);
+		doPadding(line, n);
 	}
 	printf("finished writing\n");
 
 	fclose(fp);
 	return(0);
 }
-
-void doPadding(char *buffer, int count){
-	/* pad the text to be 16 bits */
-	
-}
-
 
 void checkVersion_setup(){
 	/* check ther version and setup gcrypt */
