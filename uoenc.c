@@ -76,20 +76,20 @@ void setIV(){
 	pepper = fopen(outputFile, "a");
 	printf("outputfile: %s\n", outputFile);
 	fwrite(iv, 1, BLOCK_LEN, pepper);
-//	fputs(iv, pepper);
 	fclose(pepper);	
 }
 
 void getkey(){
 	/* Generate salt and key for encryption*/
-	gcry_randomize(salt, (SALT_LENGTH + strlen(p)), GCRY_STRONG_RANDOM);
+	memset(salt, 0, SALT_LENGTH);
+	//gcry_randomize(salt, (SALT_LENGTH + strlen(p)), GCRY_STRONG_RANDOM);
+	gcry_randomize(salt, SALT_LENGTH, GCRY_STRONG_RANDOM);
 
 	printf("SALT: %s\n", salt);
 	createOutputFile(inFile);
 	pepper = fopen(outputFile, "w");
 	printf("outputfile: %s\n", outputFile);
 	fwrite(salt, 1, SALT_LENGTH, pepper);
-	//fputs(salt, pepper);
 	fclose(pepper);	
 	
 	int result = gcry_kdf_derive(p, (strlen(p)-1), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, salt, SALT_LENGTH, DEFAULT_ITERATIONS, KEY_LENGTH, key);
@@ -116,13 +116,10 @@ void writeToFile(char *buffer){
 	fpout = fopen(outputFile, "a");
 	printf("this text is writting: %s\n", buffer);
 
-//	printf("Output File created.\n");
 	if (fpout == NULL){
 		printf("Error opening file.\n");
-	//	fpout = fopen("output.txt", "w");
 	}
 	printf("THIS IS THE [%d] TIME THROUGH WRITETOFILE.\n", z);
-//	fputs(buffer, fpout);
 	fwrite(buffer, 1, BLOCK_LEN, fpout);
 	fclose(fpout);
 	z++;
@@ -136,7 +133,7 @@ void encryptfile(char *buffer2, int length){
 		printf("ERROR OPEN!!!\n");
 		//exit(0);
 	}
-	err = gcry_cipher_setkey(handler, (void*)key, KEY_LENGTH);
+	err = gcry_cipher_setkey(handler, &key, KEY_LENGTH);
 	if(err){
 		printf("ERROR SETKEY!!!\n");
 		//exit(0);
@@ -169,10 +166,11 @@ void uoenc(){
 	printf("Encryption is done.\n");
 }
 
-void doPadding(char *buffer, int count){
-	/* pad the text to be 16 bits */
+/*void doPadding(char *buffer, int count){
+	//pad the text to be 16 bits 
 	int diff;
 	char *tempBuffer = NULL;
+	memset(buffer, 0, BLOCK_LEN);
 	while(count < BLOCK_LEN){
 		buffer[count] = 0x0; //0x0
 		count++;
@@ -188,7 +186,7 @@ void doPadding(char *buffer, int count){
 		}
 	}
 	//encryptfile(buffer);
-}
+}*/
 
 int readInFile(char *filename){
 	/* read in a file in 16 bits */
@@ -239,7 +237,6 @@ int readInFile(char *filename){
 	encBuffer = malloc(BLOCK_LEN);
 	printf("inFile: %s\n", filename);
 
-	//FILE NAME IS MESSED UP
 	fp = fopen(filename, "r");
 	while (!feof(fp)){
 		bytes = fread(encBuffer,1,size,fp);

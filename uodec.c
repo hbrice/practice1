@@ -32,9 +32,8 @@ char buf[BUF_SIZE]; //buffer for read in password
 char *p;		// pointer for password input
 
 /* Buffer for storing salt */
-
-unsigned char salt[SALT_LENGTH];
-unsigned char iv[BLOCK_LEN];
+char salt[SALT_LENGTH];
+char iv[BLOCK_LEN];
 
 /* Handlers for encryption */
 gcry_cipher_hd_t handler;
@@ -75,7 +74,8 @@ void writeOtherFile(char *buffer3){
 		printf("Error opening file.\n");
 		//fpin = fopen("output.txt", "w");
 	}
-	fputs(buffer3, fpin);
+//	fputs(buffer3, fpin);
+	fwrite(buffer3, 1, BLOCK_LEN, fpin);
 	printf("This is decrypted: %s\n", buffer3);
 	fclose(fpin);
 }
@@ -88,7 +88,7 @@ void decryptFile(char *bufferr, unsigned int length){
 		printf("ERROR OPEN!!!\n");
 		//exit(0);
 	}
-	err = gcry_cipher_setkey(handler, key, KEY_LENGTH);
+	err = gcry_cipher_setkey(handler, &key, KEY_LENGTH);
 	if(err){
 		printf("ERROR SETKEY!!!\n");
 		//exit(0);
@@ -104,7 +104,6 @@ void decryptFile(char *bufferr, unsigned int length){
 	}
 	gcry_cipher_close(handler);
 	
-
 	writeOtherFile(bufferr);
 	//writeOtherFile(buffer);
 }
@@ -116,7 +115,7 @@ int readEncFile(){
 
 	int bufSize = 16;
 	char line[bufSize];
-	fp = fopen("hello.txt.uo", "r");
+	fp = fopen(inFile, "r");
 
 	printf("inFile %s\n", inFile);
 	int n=0; //count up to 1 - 16
@@ -162,9 +161,13 @@ void uodec(){
 	promptForPassword();
 
 	readSalt = fopen(inFile, "r");
-	fread(salt, (64 + strlen(p)), 1, readSalt); //save salt to variable
+	memset(salt, 0, SALT_LENGTH);
+//	fread(salt, (64 + strlen(p)), 1, readSalt); //save salt to variable
+	fread(salt, 64, 1, readSalt); //save salt to variable
+
 	printf("salt is: %s\n", salt);
 
+	memset(iv, 0, BLOCK_LEN);
 	fread(iv, 16, 1, readSalt); //save iv to variable
 	printf("iv is: %s\n", iv);
 	//checkVersion_setup();
