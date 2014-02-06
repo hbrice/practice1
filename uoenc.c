@@ -43,13 +43,14 @@ FILE *fpout;	//file pointer for writeToFile
 //char hmacbuf[1024];
 
 char *inFile; // File name "hello.txt" stored from argv[1]
-char plaintext[MAX_FILE_SIZE];	//buffer to hold inFile text
+//char plaintext[MAX_FILE_SIZE];	//buffer to hold inFile text
 char *uo = ".uo";
 
 char ciphertext[BLOCK_LEN] = {0}; //originally 48
-gcry_error_t err = 0;	//for error handling
+//gcry_error_t err = 0;	//for error handling
 FILE *pepper = NULL; //used for sending salt
 
+int z =0;
 /*Save to heap*/
 
 void promptForPassword(){
@@ -82,8 +83,7 @@ void setIV(){
 
 void getkey(){
 	/* Generate salt and key for encryption*/
-	
-	gcry_randomize(salt, SALT_LENGTH + strlen(p), GCRY_STRONG_RANDOM);
+	gcry_randomize(salt, (SALT_LENGTH + strlen(p)), GCRY_STRONG_RANDOM);
 
 	printf("SALT: %s\n", salt);
 	createOutputFile(inFile);
@@ -92,8 +92,10 @@ void getkey(){
 	fputs(salt, pepper);
 	fclose(pepper);	
 	
-	gcry_kdf_derive(p, (strlen(p)-1), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, salt, SALT_LENGTH, DEFAULT_ITERATIONS, KEY_LENGTH, key);
-	
+	int result = gcry_kdf_derive(p, (strlen(p)-1), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, salt, SALT_LENGTH, DEFAULT_ITERATIONS, KEY_LENGTH, key);
+	if(result != 0){
+		printf("ERROR getting password!\n");
+	}
 	printf("Derive is done.\n");
 	printf("The Key is: %s\n", key);
 
@@ -102,33 +104,55 @@ void getkey(){
 
 void append_hmac(char *buffer){
 	/*Takes in encrypted file and appends hmac*/ 
-	gcry_md_open(&handler2, GCRY_MD_SHA256, GCRY_MD_FLAG_HMAC);
-	gcry_md_setkey(handler2, key, KEY_LENGTH);
+//	gcry_md_open(&handler2, GCRY_MD_SHA256, GCRY_MD_FLAG_HMAC);
+//	gcry_md_setkey(handler2, key, KEY_LENGTH);
 //	gcry_md_write(handler2, hmacbuf, BUF_SIZE);_
-	gcry_md_close(handler2);
+//	gcry_md_close(handler2);
 	printf("The HMAC is appended to the key.\n");
 }
 
 void writeToFile(char *buffer){
 	/*This is for creating the.uo encrypted file*/
 	fpout = fopen(outputFile, "a");
+	printf("this text is writting: %s\n", buffer);
+
 //	printf("Output File created.\n");
 	if (fpout == NULL){
 		printf("Error opening file.\n");
 	//	fpout = fopen("output.txt", "w");
 	}
+	printf("THIS IS THE [%d] TIME THROUGH WRITETOFILE.\n", z);
 	fputs(buffer, fpout);
 	fclose(fpout);
+	z++;
 }
 
-void encryptfile(char *buffer){
-//	printf("buffer passed to encrypt %s\n", buffer);
+void encryptfile(char *buffer2, unsigned int length){
 	/* opens the encryption process */
-	err = gcry_cipher_open(&handler, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, GCRY_CIPHER_SECURE);
-	gcry_cipher_setkey(handler, (void*)key, KEY_LENGTH);
-	gcry_cipher_setiv(handler, &iv, BLOCK_LEN);
-	gcry_cipher_encrypt(handler, ciphertext, sizeof(plaintext), buffer, BLOCK_LEN);
-	writeToFile(ciphertext);
+	gcry_error_t err = 0;
+	err = gcry_cipher_open(&handler, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, 0);
+	if(err){
+		printf("ERROR OPEN!!!\n");
+		//exit(0);
+	}
+	err = gcry_cipher_setkey(handler, (void*)key, KEY_LENGTH);
+	if(err){
+		printf("ERROR SETKEY!!!\n");
+		//exit(0);
+	}
+	err = gcry_cipher_setiv(handler, &iv, BLOCK_LEN);
+	if(err){
+		printf("ERROR SETIV!!!\n");
+		//exit(0);
+	}
+	err = gcry_cipher_encrypt(handler, buffer2, length, NULL, 0); //changed from buffer, buf len
+	if(err){
+		printf("ERROR ENCRYPT!!!\n");
+		//exit(0);
+	}
+
+	writeToFile(buffer2);
+
 	gcry_cipher_close(handler);
 	//printf("Done. Here is the ciphertext: %s\n", ciphertext);
 }
@@ -139,7 +163,7 @@ void uoenc(){
 	promptForPassword();	//asks user for password
 	getkey();
 	printf("Encryption is beginning.\n");
-	readInFile(fp, inFile, MAX_FILE_SIZE);
+	readInFile(inFile);
 	printf("Encryption is done.\n");
 }
 
@@ -157,24 +181,16 @@ void doPadding(char *buffer, int count){
 			diff = BLOCK_LEN - i;
 			tempBuffer = malloc(diff + 1);
 			gcry_create_nonce(tempBuffer, diff);
-		//	printf("filling in with nonce\n");
+
 			memcpy(buffer + i, tempBuffer, diff + 1);
-		/*	int j; //for printing out contents of buffer	
-			for (j = 0; j < 16; j++) {
-				printf("buffer at %d", j);
-				printf("****%d\n", buffer[j]);
-			}
-		*/
-	//		printf("buffer: %s\n", buffer);
 		}
 	}
-//	printf("after nonce: %s\n", buffer);
-	encryptfile(buffer);
-	//writeToFile(line);
+	//encryptfile(buffer);
 }
 
-int readInFile(FILE *fp, char* filename, int c){
-	/* read in a file*/
+int readInFile(char *filename){
+	/* read in a file in 16 bits */
+	/**
 	int bufSize = 16;
 	char line[bufSize];
 	printf("Filename inside readInFile: %s\n", filename);
@@ -209,11 +225,45 @@ int readInFile(FILE *fp, char* filename, int c){
 	if(v == 10){
 		printf("No need to pad\n");
 	}else{
-		/*do padding*/
+		///*do padding
 		doPadding(line, n);
 	}
 	printf("finished writing\n");
+*/
+	int bytes = '\0';
+	char *encBuffer = NULL;
+	char *newBuffer = NULL;
+	int size = 16;
+	encBuffer = malloc(BLOCK_LEN);
+//	printf("inFile: %s\n", filename);
 
+	//FILE NAME IS MESSED UP
+	fp = fopen("hello.txt", "r");
+	while (!feof(fp)){
+		bytes = fread(encBuffer,1,size,fp);
+		if(!bytes){
+			break;
+		}
+		while(bytes<size){
+			encBuffer[bytes++] = 0x0;
+		}
+		int i;
+		int diff;
+		printf("encBuffer before encryption:  %s\n", encBuffer);
+		for(i=0; i<size; i++){
+			if(encBuffer[i] == '\0'){
+				diff = size - i;
+				newBuffer = malloc(diff + 1);
+				gcry_create_nonce(newBuffer, diff);
+
+				memcpy(encBuffer + i, newBuffer, diff + 1);
+				break;
+			}
+		}
+		printf("encbuffer sending to encryption: %s\n", encBuffer);
+		encryptfile(encBuffer, size);
+	//	writeToFile(encBuffer);
+	}
 	fclose(fp);
 	return(0);
 }
@@ -226,11 +276,11 @@ void checkVersion_setup(){
 		printf("You are starting gcrpyt.\n");
 	}
 	//For encryption.. make secure memory...
-	gcry_control(GCRYCTL_SUSPEND_SECMEM_WARN);
+/*	gcry_control(GCRYCTL_SUSPEND_SECMEM_WARN);
 	gcry_control(GCRYCTL_INIT_SECMEM, 16384, 0);
 	gcry_control(GCRYCTL_RESUME_SECMEM_WARN);
 	printf("Done.\n");
-
+*/
 	gcry_control(GCRYCTL_INITIALIZATION_FINISHED, 0);
 	printf("Initialization is Done.\n");
 }
@@ -238,8 +288,9 @@ void checkVersion_setup(){
 int main (int argc, char *argv[]){
 	char *ipaddress;
 	int i;
+	char *fileToRead = NULL;
 	
-	checkVersion_setup();
+//	checkVersion_setup();
 	/* Parse the command line */
 	//Prints each arg on the command line: take out later***
 	for (i = 0; i < argc; i++){
