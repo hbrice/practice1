@@ -10,13 +10,6 @@
 #include <stdbool.h>
 #include <gcrypt.h>
 
-#define BUF_SIZE	1024
-#define MAX_FILE_SIZE 1024
-#define SALT_LENGTH	64
-#define KEY_LENGTH	32 
-#define BLOCK_LEN 16
-#define DEFAULT_ITERATIONS 1024 //2048 //16*128
-
 
 /* Buffer for storing key */
 char key[KEY_LENGTH];

@@ -9,6 +9,8 @@
 #include <string.h>
 #include <stdbool.h>
 #include <gcrypt.h>
+#include <unistd.h>
+//#include "uoenc.h"
 
 #define BUF_SIZE	1024
 #define MAX_FILE_SIZE 1024
@@ -25,8 +27,8 @@ char buf[BUF_SIZE]; //buffer for read in password
 char *p;		// pointer for password input
 
 /* Buffer for storing salt */
-unsigned char salt[SALT_LENGTH];
-unsigned char *iv;
+char salt[SALT_LENGTH];
+char *iv;
 
 /* Handlers for encryption */
 gcry_cipher_hd_t handler;
@@ -38,18 +40,14 @@ char *outputFile; //create hello.txt.uo
 FILE *fp = NULL;	//file pointer for readInFile
 FILE *fpout;	//file pointer for writeToFile
 
-//hardcode salt
-
 //char hmacbuf[1024];
 
 char *inFile; // File name "hello.txt" stored from argv[1]
 //char plaintext[MAX_FILE_SIZE];	//buffer to hold inFile text
-char *uo = ".uo";
 
 char ciphertext[BLOCK_LEN] = {0}; //originally 48
-//gcry_error_t err = 0;	//for error handling
 FILE *pepper = NULL; //used for sending salt
-
+char *outputFile;
 int z =0;
 /*Save to heap*/
 
@@ -63,9 +61,9 @@ void promptForPassword(){
 
 void createOutputFile(char *filename){
 	/* Takes in input file and returns hello.txt.uo */
-	outputFile = filename;
-	strcat(outputFile, uo);
-	printf("outputFile: %s\n",outputFile);
+	outputFile = malloc (strlen(filename)+3);//4?
+	outputFile = strcpy(outputFile, filename);
+	outputFile = strcat(outputFile, ".uo");
 }
 
 void setIV(){
@@ -77,7 +75,8 @@ void setIV(){
 	/* attach to text file */
 	pepper = fopen(outputFile, "a");
 	printf("outputfile: %s\n", outputFile);
-	fputs(iv, pepper);
+	fwrite(iv, 1, BLOCK_LEN, pepper);
+//	fputs(iv, pepper);
 	fclose(pepper);	
 }
 
@@ -89,7 +88,8 @@ void getkey(){
 	createOutputFile(inFile);
 	pepper = fopen(outputFile, "w");
 	printf("outputfile: %s\n", outputFile);
-	fputs(salt, pepper);
+	fwrite(salt, 1, SALT_LENGTH, pepper);
+	//fputs(salt, pepper);
 	fclose(pepper);	
 	
 	int result = gcry_kdf_derive(p, (strlen(p)-1), GCRY_KDF_PBKDF2, GCRY_MD_SHA256, salt, SALT_LENGTH, DEFAULT_ITERATIONS, KEY_LENGTH, key);
@@ -104,10 +104,10 @@ void getkey(){
 
 void append_hmac(char *buffer){
 	/*Takes in encrypted file and appends hmac*/ 
-//	gcry_md_open(&handler2, GCRY_MD_SHA256, GCRY_MD_FLAG_HMAC);
-//	gcry_md_setkey(handler2, key, KEY_LENGTH);
-//	gcry_md_write(handler2, hmacbuf, BUF_SIZE);_
-//	gcry_md_close(handler2);
+	gcry_md_open(&handler2, GCRY_MD_SHA256, GCRY_MD_FLAG_HMAC);
+	gcry_md_setkey(handler2, key, KEY_LENGTH);
+	//gcry_md_write(handler2, hmacbuf, BUF_SIZE);_
+	gcry_md_close(handler2);
 	printf("The HMAC is appended to the key.\n");
 }
 
@@ -122,12 +122,13 @@ void writeToFile(char *buffer){
 	//	fpout = fopen("output.txt", "w");
 	}
 	printf("THIS IS THE [%d] TIME THROUGH WRITETOFILE.\n", z);
-	fputs(buffer, fpout);
+//	fputs(buffer, fpout);
+	fwrite(buffer, 1, BLOCK_LEN, fpout);
 	fclose(fpout);
 	z++;
 }
 
-void encryptfile(char *buffer2, unsigned int length){
+void encryptfile(char *buffer2, int length){
 	/* opens the encryption process */
 	gcry_error_t err = 0;
 	err = gcry_cipher_open(&handler, GCRY_CIPHER_AES256, GCRY_CIPHER_MODE_CBC, 0);
@@ -152,10 +153,11 @@ void encryptfile(char *buffer2, unsigned int length){
 	}
 
 	writeToFile(buffer2);
-
 	gcry_cipher_close(handler);
-	//printf("Done. Here is the ciphertext: %s\n", ciphertext);
 }
+
+
+int readInFile(char*);
 
 void uoenc(){
 	/* Function for calling other functions for encrypting a file*/
@@ -225,7 +227,7 @@ int readInFile(char *filename){
 	if(v == 10){
 		printf("No need to pad\n");
 	}else{
-		///*do padding
+		///do padding
 		doPadding(line, n);
 	}
 	printf("finished writing\n");
@@ -235,10 +237,10 @@ int readInFile(char *filename){
 	char *newBuffer = NULL;
 	int size = 16;
 	encBuffer = malloc(BLOCK_LEN);
-//	printf("inFile: %s\n", filename);
+	printf("inFile: %s\n", filename);
 
 	//FILE NAME IS MESSED UP
-	fp = fopen("hello.txt", "r");
+	fp = fopen(filename, "r");
 	while (!feof(fp)){
 		bytes = fread(encBuffer,1,size,fp);
 		if(!bytes){
@@ -276,51 +278,54 @@ void checkVersion_setup(){
 		printf("You are starting gcrpyt.\n");
 	}
 	//For encryption.. make secure memory...
-/*	gcry_control(GCRYCTL_SUSPEND_SECMEM_WARN);
+	gcry_control(GCRYCTL_SUSPEND_SECMEM_WARN);
 	gcry_control(GCRYCTL_INIT_SECMEM, 16384, 0);
 	gcry_control(GCRYCTL_RESUME_SECMEM_WARN);
 	printf("Done.\n");
-*/
+
 	gcry_control(GCRYCTL_INITIALIZATION_FINISHED, 0);
 	printf("Initialization is Done.\n");
 }
 
 int main (int argc, char *argv[]){
-	char *ipaddress;
-	int i;
-	char *fileToRead = NULL;
-	
-//	checkVersion_setup();
-	/* Parse the command line */
-	//Prints each arg on the command line: take out later***
-	for (i = 0; i < argc; i++){
-		printf("arg %d: %s\n", i, argv[i] );
-	}	
+	char *ipaddress;	
+
+	checkVersion_setup();
+
 	//input: uoenc.c hello.txt -d ipaddress -l
-	/* Parsing of command line */
-	
-	if(argv[1] == '\0'){
-		//then no file name
-		perror("Sorry, No Input File Entered.");
-		exit(1);
-	}else {
-		inFile = argv[1];	
-		printf("InputFile:%s\n", argv[1]);
-	}
-	if(argv[2] != '\0'){
-		if(argv[2] == "-d"){
-			//send to ip address
-			ipaddress = argv[3]; //holds the ipadress
-			printf("IPAddress:%s\n", ipaddress);
-		}else if(argv[2] == "-l"){
-			printf("You are encrypting locally.\n");
-			//run in local mode and just encrypt a file
+	/* Parse the command line */
+	int dflag = 0;
+	int lflag = 0;
+	char *cvalue = NULL;
+	int index;
+	int c;
+
+	inFile = argv[1];
+	argv[1] = argv[0];
+	argv++;
+	argc--;
+
+	while((c = getopt (argc, argv, "ld:")) != -1){
+		switch(c){
+			case 'd':
+				cvalue = optarg;
+				ipaddress = cvalue;
+				break;
+			case 'l':
+				lflag = 1;
+				break;
+			case '?':
+				fprintf(stderr, "Unknown input\n");
+				exit(1);
 		}
-		// encrypt file and dump in output file of same name
-	}else if(argv[2] == '\0'){ //run in local mode
-		printf("You didn't add flags, default is to run locally.\n");
-		
 	}
+	printf("dflag = %d, lflag = %d, cvalue = %s\n", dflag, lflag, cvalue);
+	for(index = optind; index< argc; index++){
+		printf("Non-option argument %s\n", argv[index]);
+		return 0;
+	}
+
+	fprintf(stderr, "before uoenc\n" );
 	uoenc();
 
 	exit(0);

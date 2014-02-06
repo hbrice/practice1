@@ -9,6 +9,8 @@
 #include <string.h>
 #include <stdbool.h>
 #include <gcrypt.h>
+#include <unistd.h>
+//#include "uodec.h"
 
 #define SALT_LENGTH	64
 #define BLOCK_LEN 16
@@ -145,70 +147,21 @@ int readEncFile(){
 }
 
 void uodec(){
-	/*Test function to see if encryption is correct*/
+	/* function to see if encryption is correct*/
+
 	printf("Lets decrypt some shizzzz:\n");
+	int size = 16;
 //	printf("salt is: %s\n", salt);
 //	printf("iv is: %s\n", iv);
 //	promptForPassword();
 //	getkey();
 //	readEncFile(fpin, MAX_FILE_SIZE);
-	fprintf(fpin, "The encrypted text has been decryypted. %s\n", decryptedtext);
-}
-
-void checkVersion_setup(){
-	/* check ther version and setup gcrypt */
-	if(!gcry_check_version("1.5.0")){
-		printf("Starting gcrypt failed.\n");
-	}else{
-		printf("You are starting gcrpyt.\n");
-	}
-	//For encryption.. make secure memory...
-	gcry_control(GCRYCTL_SUSPEND_SECMEM_WARN);
-	gcry_control(GCRYCTL_INIT_SECMEM, 16384, 0);
-	gcry_control(GCRYCTL_RESUME_SECMEM_WARN);
-	printf("Done.\n");
-
-	gcry_control(GCRYCTL_INITIALIZATION_FINISHED, 0);
-	printf("Initialization is Done.\n");
-}
-
-int main (int argc, char *argv[]){
-	char *inputFile;
-	int i;
-	int size = 16;
-	
-	checkVersion_setup();
-
-	//Prints each arg on the command line:
-	for (i = 0; i < argc; i++){
-		printf("arg %d: %s\n", i, argv[i] );
-	}
-	
-	//input: uodec.c hello.txt.uo 
-	/* Parsing of command line */
-	
-	if(argv[1] == '\0'){
-		//then no file name
-		perror("Sorry, No Input File Entered.");
-		exit(1);
-	}else if(argv[1] == "-l"){
-		// run local
-		if(argv[2] == '\0'){
-			perror("Sorry you forgot the input file");
-			exit(1);
-		}
-		inFile = argv[2];	
-		printf("InputFile:%s\n", inFile);
-	}
-	inFile = argv[1];	
-	printf("InputFile:%s\n", inFile);
-
-	/* read in sale and iv for variables  */
+	/* read in salt and iv for variables  */
 	int bytes = '\0';
 	decryptBuf = malloc(BLOCK_LEN);
 	promptForPassword();
 
-	readSalt = fopen("hello.txt.uo", "r");
+	readSalt = fopen(inFile, "r");
 	fread(salt, (64 + strlen(p)), 1, readSalt); //save salt to variable
 	printf("salt is: %s\n", salt);
 
@@ -235,6 +188,67 @@ int main (int argc, char *argv[]){
 	fclose(readSalt);
 
 	/* close functions */
-//	uodec();
+	//fprintf(fpin, "The encrypted text has been decryypted. %s\n", decryptedtext);
+}
+
+void checkVersion_setup(){
+	/* check ther version and setup gcrypt */
+	if(!gcry_check_version("1.5.0")){
+		printf("Starting gcrypt failed.\n");
+	}else{
+		printf("You are starting gcrpyt.\n");
+	}
+	//For encryption.. make secure memory...
+	gcry_control(GCRYCTL_SUSPEND_SECMEM_WARN);
+	gcry_control(GCRYCTL_INIT_SECMEM, 16384, 0);
+	gcry_control(GCRYCTL_RESUME_SECMEM_WARN);
+	printf("Done.\n");
+
+	gcry_control(GCRYCTL_INITIALIZATION_FINISHED, 0);
+	printf("Initialization is Done.\n");
+}
+
+int main (int argc, char *argv[]){
+	char *inputFile;
+	char *port;
+	int i;
+
+	checkVersion_setup();
+
+	//input: uodec.c hello.txt.uo 
+	/* Parsing of command line */
+	
+	int dflag = 0;
+	int lflag = 0;
+	char *cvalue = NULL;
+	int index;
+	int c;
+
+	inFile = argv[1];
+	argv[1] = argv[0];
+	argv++;
+	argc--;
+
+	while((c = getopt (argc, argv, "l")) != -1){
+		switch(c){
+			case 'd':
+				cvalue = optarg;
+				port = cvalue;
+				break;
+			case 'l':
+				lflag = 1;
+				break;
+			case '?':
+				fprintf(stderr, "Unknown input\n");
+				exit(1);
+		}
+	}
+	printf("dflag = %d, lflag = %d, cvalue = %s\n", dflag, lflag, cvalue);
+	for(index = optind; index < argc; index++){
+		printf("Non-option argument %s\n", argv[index]);
+		return 0;
+	}
+
+	uodec();
 	exit(0);
 }
